@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 
 	"github.com/satisfactorymodding/ficsit-cli/cli"
 	resolver "github.com/satisfactorymodding/ficsit-resolver"
@@ -195,20 +197,66 @@ func (f *ficsitCLI) GetSelectedInstallLockfile() (*resolver.LockFile, error) {
 	return lockfile, nil
 }
 
+// LaunchGame launches the currently selected game installation
 func (f *ficsitCLI) LaunchGame() {
 	selectedInstallation := f.GetSelectedInstall()
 	if selectedInstallation == nil {
 		slog.Error("no installation selected")
 		return
 	}
+	
+	// Check if this is a custom installation by looking at the metadata
 	metadata, ok := f.installationMetadata.Load(selectedInstallation.Path)
 	if !ok || metadata.Info == nil {
 		slog.Error("no metadata for installation")
 		return
 	}
-	out, cmd, err := f.executeLaunchCommand(metadata.Info.LaunchPath)
-	if err != nil {
-		slog.Error("failed to launch game", slog.Any("error", err), slog.String("cmd", cmd), slog.String("output", string(out)))
+	
+	// For cracked installations (Custom launcher), we need to launch through Steam
+	if metadata.Info.Launcher == "Custom" {
+		// For cracked installations, we need to launch through Steam
+		launchPath := f.findCustomInstallationExecutable(selectedInstallation.Path)
+		if launchPath != "" {
+			// Launch through Steam with the custom executable path
+			out, cmd, err := f.executeLaunchCommand([]string{"cmd", "/C", "start", "steam://launch/1895860", launchPath})
+			if err != nil {
+				slog.Error("failed to launch game through Steam", slog.Any("error", err), slog.String("cmd", cmd), slog.String("output", string(out)))
+				return
+			}
+			return
+		}
+		slog.Error("could not find executable for custom installation")
 		return
 	}
+	
+	// If we have metadata and a valid launch path, use it (for non-custom installations)
+	if len(metadata.Info.LaunchPath) > 0 {
+		out, cmd, err := f.executeLaunchCommand(metadata.Info.LaunchPath)
+		if err != nil {
+			slog.Error("failed to launch game", slog.Any("error", err), slog.String("cmd", cmd), slog.String("output", string(out)))
+			return
+		}
+		return
+	}
+	
+	slog.Error("could not determine launch path for installation")
+}
+
+// findCustomInstallationExecutable looks for the game executable in common locations for cracked versions
+func (f *ficsitCLI) findCustomInstallationExecutable(installPath string) string {
+	// Common executable locations for cracked Satisfactory installations
+	possiblePaths := []string{
+		filepath.Join(installPath, "FactoryGame", "Binaries", "Win64", "FactoryGame-Win64-Shipping.exe"),
+		filepath.Join(installPath, "FactoryGame", "Binaries", "Win64", "FactoryGame.exe"),
+		filepath.Join(installPath, "FactoryGame.exe"),
+		filepath.Join(installPath, "FactoryGameSteam.exe"),
+	}
+	
+	for _, path := range possiblePaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+	
+	return ""
 }

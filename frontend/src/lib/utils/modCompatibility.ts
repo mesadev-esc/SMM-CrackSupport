@@ -20,6 +20,7 @@ import {
 import { offline } from '$lib/store/settingsStore';
 import { OfflineGetMod } from '$wailsjs/go/ficsitcli/ficsitCLI';
 import { common } from '$wailsjs/go/models';
+import { getInstallationTargetName } from '$lib/wailsTypesExtensions';
 
 export interface CompatibilityWithSource extends Compatibility {
   source: 'reported' | 'version';
@@ -68,10 +69,32 @@ function friendlyInstallName(install: common.Installation) {
 
 function getTargetCompatibilityFor(modVersions: ModVersion[], versionCompatibleVersions: ModVersion[]): CompatibilityWithSource {
   const requiredTargets = Object.entries(get(selectedProfileTargets));
+  
+  // Special handling for custom installations
+  const installInfo = get(selectedInstallMetadata).info;
+  if (installInfo && installInfo.launcher === 'Custom') {
+    // For custom installations, determine the target based on the installation info
+    const installTarget = getInstallationTargetName(installInfo);
+    
+    // If we can determine the target, use it
+    if (installTarget) {
+      // Create a simplified requiredTargets structure for just this target
+      // This ensures mods are checked against the correct platform
+      const customRequiredTargets: [string, string[]][] = [[installTarget, ['custom']]];
+      
+      return checkCompatibilityWithTargets(modVersions, versionCompatibleVersions, customRequiredTargets);
+    }
+  }
+  
+  // Fall back to existing logic for non-custom installations or when target detection fails
   if (requiredTargets.length === 0) {
     return { state: CompatibilityState.Works, source: 'version' };
   }
 
+  return checkCompatibilityWithTargets(modVersions, versionCompatibleVersions, requiredTargets);
+}
+
+function checkCompatibilityWithTargets(modVersions: ModVersion[], versionCompatibleVersions: ModVersion[], requiredTargets: [string, string[]][]): CompatibilityWithSource {
   const clientRequiredTargets = requiredTargets.filter(([target]) => clientTargets.includes(target as TargetName)).map(([target]) => target as TargetName);
   const serverRequiredTargets = requiredTargets.filter(([target]) => serverTargets.includes(target as TargetName)).map(([target]) => target as TargetName);
 
