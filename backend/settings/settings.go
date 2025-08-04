@@ -68,7 +68,8 @@ type settings struct {
 
 	Debug bool `json:"debug,omitempty"`
 
-	NewUserSetupComplete bool `json:"newUserSetupComplete,omitempty"`
+	NewUserSetupComplete        bool `json:"newUserSetupComplete,omitempty"`
+	CrackedInstallSetupComplete bool `json:"crackedInstallSetupComplete,omitempty"`
 }
 
 var Settings = &settings{
@@ -101,7 +102,8 @@ var Settings = &settings{
 
 	Debug: false,
 
-	NewUserSetupComplete: false,
+	NewUserSetupComplete:        false,
+	CrackedInstallSetupComplete: false,
 }
 
 func (s *settings) GetRestoreWindowPosition() bool {

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { mdiBug, mdiCheck, mdiCheckboxBlankOutline, mdiCheckboxMarkedOutline, mdiChevronRight, mdiClipboard, mdiCog, mdiDownload, mdiEggEaster, mdiFolderEdit, mdiLanConnect, mdiTune } from '@mdi/js';
+  import { mdiBug, mdiCheck, mdiCheckboxBlankOutline, mdiCheckboxMarkedOutline, mdiChevronRight, mdiClipboard, mdiCog, mdiDownload, mdiEggEaster, mdiFolder, mdiFolderEdit, mdiLanConnect, mdiTune, mdiDelete } from '@mdi/js';
   import { ListBox, ListBoxItem } from '@skeletonlabs/skeleton';
   import { getTranslate } from '@tolgee/svelte';
   import { getContextClient } from '@urql/svelte';
@@ -25,8 +25,9 @@
     updateCheckMode,
     version,
   } from '$lib/store/settingsStore';
-  import { GenerateDebugInfo } from '$wailsjs/go/app/app';
+  import { AddCustomInstallation, OpenFileDialog, ClearInstallations } from '$wailsjs/go/app/app';
   import { Apply, OfflineGetMod } from '$wailsjs/go/ficsitcli/ficsitCLI';
+  import { common } from '$wailsjs/go/models';
 
   const modalStore = getModalStore();
 
@@ -191,6 +192,43 @@
   $: if ($queueAutoStart && $queuedMods.length === 0 && $hasPendingProfileChange) {
     $hasPendingProfileChange = false;
     addQueuedModAction('__apply__', 'apply', Apply).catch((e) => error.set(e));
+  }
+
+  // Function to handle custom installation executable selection
+  async function selectCustomExecutable() {
+    try {
+      const executablePath = await OpenFileDialog({
+        title: "Select FactoryGame Executable",
+        filters: [
+          { displayName: "Executable Files", pattern: "*.exe" },
+          { displayName: "All Files", pattern: "*" }
+        ],
+        canCreateDirectories: true
+      });
+      
+      if (executablePath) {
+        // Extract directory path from executable path
+        const installPath = executablePath.substring(0, executablePath.lastIndexOf('\\'));
+        
+        // Add the custom installation
+        const installation: common.Installation = await AddCustomInstallation(installPath);
+        console.log("Custom installation added:", installation);
+      }
+    } catch (e) {
+      error.set(e);
+      console.error("Failed to select custom executable:", e);
+    }
+  }
+
+  // Function to clear all registered installations
+  async function clearAllInstallations() {
+    try {
+      await ClearInstallations();
+      console.log("Successfully cleared all installations");
+    } catch (e) {
+      error.set(e);
+      console.error("Failed to clear installations:", e);
+    }
   }
 </script>
 
@@ -362,6 +400,28 @@
         <span class="flex-auto">
           <T defaultValue="Settings" keyName="settings.settings"/>
         </span>
+      </li>
+      <hr class="divider" />
+      <!-- Add the custom executable selection button -->
+      <li>
+        <button on:click={selectCustomExecutable} data-noclose>
+          <span class="h-5 w-5"><SvgIcon class="h-full w-full" icon={mdiFolder}/></span>
+          <span class="flex-auto">
+            <T defaultValue="Add custom installation" keyName="settings.add-custom-installation"/>
+          </span>
+          <span class="h-5 w-5"><SvgIcon class="h-full w-full" icon={mdiFolderEdit}/></span>
+        </button>
+      </li>
+      <hr class="divider" />
+      <!-- Add the clear installations button -->
+      <li>
+        <button on:click={clearAllInstallations} data-noclose>
+          <span class="h-5 w-5"><SvgIcon class="h-full w-full" icon={mdiDelete}/></span>
+          <span class="flex-auto">
+            <T defaultValue="Clear all registered installations" keyName="settings.clear-all-installations"/>
+          </span>
+          <span class="h-5 w-5"><SvgIcon class="h-full w-full" icon={mdiDelete}/></span>
+        </button>
       </li>
       <hr class="divider" />
       <li data-noclose use:popup={languageMenu}>

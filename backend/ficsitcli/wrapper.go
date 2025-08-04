@@ -151,7 +151,16 @@ func (f *ficsitCLI) SelectedProfileTargets() map[string][]string {
 
 func (f *ficsitCLI) isValidInstall(path string) bool {
 	meta, ok := f.installationMetadata.Load(path)
-	return ok && meta.State != InstallStateInvalid
+	if !ok {
+		return false
+	}
+	
+	// Custom installations are always considered valid
+	if meta.Info != nil && meta.Info.Launcher == "Custom" {
+		return true
+	}
+	
+	return meta.State != InstallStateInvalid
 }
 
 func (f *ficsitCLI) WipeMods(includeRemote bool) error {
@@ -176,5 +185,73 @@ func (f *ficsitCLI) WipeMods(includeRemote bool) error {
 			return fmt.Errorf("failed to wipe installation %s: %w", i.Path, err)
 		}
 	}
+	return nil
+}
+
+// AddInstallation adds a new installation to ficsit-cli and registers it in the metadata
+func (f *ficsitCLI) AddInstallation(path string, launchPath []string, installType string, branch string, version int, launcher string) error {
+	// Add to ficsit-cli installations
+	_, err := f.ficsitCli.Installations.AddInstallation(f.ficsitCli, path, f.GetFallbackProfile())
+	if err != nil {
+		return fmt.Errorf("failed to add installation to ficsit-cli: %w", err)
+	}
+
+	// Create installation entry for metadata
+	installation := &common.Installation{
+		Path:       path,
+		Version:    version,
+		Type:       common.InstallType(installType),
+		Location:   common.LocationTypeLocal,
+		Branch:     common.GameBranch(branch),
+		Launcher:   launcher,
+		LaunchPath: launchPath,
+	}
+
+	// Store metadata
+	f.installationMetadata.Store(path, installationMetadata{
+		State: InstallStateValid,
+		Info:  installation,
+	})
+
+	// Save installations
+	err = f.ficsitCli.Installations.Save()
+	if err != nil {
+		return fmt.Errorf("failed to save installations: %w", err)
+	}
+
+	// Emit globals to update frontend
+	f.EmitGlobals()
+
+	return nil
+}
+
+// InstallationMetadata returns the installation metadata store
+func (f *ficsitCLI) InstallationMetadata() *xsync.MapOf[string, installationMetadata] {
+	return f.installationMetadata
+}
+
+// EnsureSelectedInstallationIsValid ensures the selected installation is valid
+func (f *ficsitCLI) EnsureSelectedInstallationIsValid() {
+	f.ensureSelectedInstallationIsValid()
+}
+
+// ClearInstallations removes all registered installations
+func (f *ficsitCLI) ClearInstallations() error {
+	// Clear all installations from ficsit-cli
+	f.ficsitCli.Installations.Installations = make([]*cli.Installation, 0)
+	f.ficsitCli.Installations.SelectedInstallation = ""
+	
+	// Clear all installation metadata
+	f.installationMetadata.Clear()
+	
+	// Save the empty installations list
+	err := f.ficsitCli.Installations.Save()
+	if err != nil {
+		return fmt.Errorf("failed to save empty installations: %w", err)
+	}
+	
+	// Emit globals to update frontend
+	f.EmitGlobals()
+	
 	return nil
 }

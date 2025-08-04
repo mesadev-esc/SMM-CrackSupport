@@ -10,17 +10,20 @@ import (
 	"github.com/pkg/browser"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"github.com/satisfactorymodding/SatisfactoryModManager/backend/common"
+	appCommon "github.com/satisfactorymodding/SatisfactoryModManager/backend/common"
+	"github.com/satisfactorymodding/SatisfactoryModManager/backend/ficsitcli"
+	installCommon "github.com/satisfactorymodding/SatisfactoryModManager/backend/installfinders/common"
+	customLauncher "github.com/satisfactorymodding/SatisfactoryModManager/backend/installfinders/launchers/custom"
 	"github.com/satisfactorymodding/SatisfactoryModManager/backend/settings"
 	"github.com/satisfactorymodding/SatisfactoryModManager/backend/utils"
 )
 
 func (a *app) ExpandMod() bool {
-	width, height := wailsRuntime.WindowGetSize(common.AppContext)
-	wailsRuntime.WindowSetMinSize(common.AppContext, utils.ExpandedMin.Width, utils.ExpandedMin.Height)
-	wailsRuntime.WindowSetMaxSize(common.AppContext, utils.ExpandedMax.Width, utils.ExpandedMax.Height)
-	if !wailsRuntime.WindowIsMaximised(common.AppContext) {
-		wailsRuntime.WindowSetSize(common.AppContext, max(width, settings.Settings.ExpandedSize.Width), height)
+	width, height := wailsRuntime.WindowGetSize(appCommon.AppContext)
+	wailsRuntime.WindowSetMinSize(appCommon.AppContext, utils.ExpandedMin.Width, utils.ExpandedMin.Height)
+	wailsRuntime.WindowSetMaxSize(appCommon.AppContext, utils.ExpandedMax.Width, utils.ExpandedMax.Height)
+	if !wailsRuntime.WindowIsMaximised(appCommon.AppContext) {
+		wailsRuntime.WindowSetSize(appCommon.AppContext, max(width, settings.Settings.ExpandedSize.Width), height)
 	}
 	a.IsExpanded = true
 	return true
@@ -28,11 +31,11 @@ func (a *app) ExpandMod() bool {
 
 func (a *app) UnexpandMod() bool {
 	a.IsExpanded = false
-	width, height := wailsRuntime.WindowGetSize(common.AppContext)
-	wailsRuntime.WindowSetMinSize(common.AppContext, utils.UnexpandedMin.Width, utils.UnexpandedMin.Height)
-	wailsRuntime.WindowSetMaxSize(common.AppContext, utils.UnexpandedMax.Width, utils.UnexpandedMax.Height)
-	if !wailsRuntime.WindowIsMaximised(common.AppContext) {
-		wailsRuntime.WindowSetSize(common.AppContext, min(width, settings.Settings.UnexpandedSize.Width), height)
+	width, height := wailsRuntime.WindowGetSize(appCommon.AppContext)
+	wailsRuntime.WindowSetMinSize(appCommon.AppContext, utils.UnexpandedMin.Width, utils.UnexpandedMin.Height)
+	wailsRuntime.WindowSetMaxSize(appCommon.AppContext, utils.UnexpandedMax.Width, utils.UnexpandedMax.Height)
+	if !wailsRuntime.WindowIsMaximised(appCommon.AppContext) {
+		wailsRuntime.WindowSetSize(appCommon.AppContext, min(width, settings.Settings.UnexpandedSize.Width), height)
 	}
 	return true
 }
@@ -71,7 +74,7 @@ func (a *app) OpenFileDialog(options OpenDialogOptions) (string, error) {
 		ResolvesAliases:            options.ResolvesAliases,
 		TreatPackagesAsDirectories: options.TreatPackagesAsDirectories,
 	}
-	file, err := wailsRuntime.OpenFileDialog(common.AppContext, wailsOptions)
+	file, err := wailsRuntime.OpenFileDialog(appCommon.AppContext, wailsOptions)
 	if err != nil {
 		return "", fmt.Errorf("failed to open file dialog: %w", err)
 	}
@@ -96,24 +99,70 @@ func (a *app) OpenDirectoryDialog(options OpenDialogOptions) (string, error) {
 		ResolvesAliases:            options.ResolvesAliases,
 		TreatPackagesAsDirectories: options.TreatPackagesAsDirectories,
 	}
-	file, err := wailsRuntime.OpenDirectoryDialog(common.AppContext, wailsOptions)
+	file, err := wailsRuntime.OpenDirectoryDialog(appCommon.AppContext, wailsOptions)
 	if err != nil {
 		return "", fmt.Errorf("failed to open directory dialog: %w", err)
 	}
 	return file, nil
 }
 
+// AddCustomInstallation allows the frontend to add a custom installation
+func (a *app) AddCustomInstallation(installPath string) (*installCommon.Installation, error) {
+	// Attempt to create custom installation
+	install, err := customLauncher.AddCustomInstallation(installPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add custom installation at path: %s - error: %w", installPath, err)
+	}
+	
+	// Add installation to ficsit-cli
+	err = ficsitcli.FicsitCLI.AddInstallation(
+		install.Path,
+		install.LaunchPath,
+		string(install.Type),
+		string(install.Branch),
+		install.Version,
+		install.Launcher,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to register installation in ficsit-cli: %w", err)
+	}
+	
+	// Ensure selected installation is valid
+	ficsitcli.FicsitCLI.EnsureSelectedInstallationIsValid()
+	
+	// Log successful addition
+	slog.Info("successfully added custom installation", 
+		slog.String("path", installPath),
+		slog.String("launcher", install.Launcher),
+		slog.String("installation_type", string(install.Type)),
+		slog.String("branch", string(install.Branch)),
+	)
+	
+	return install, nil
+}
+
+// ClearInstallations removes all registered installations
+func (a *app) ClearInstallations() error {
+	err := ficsitcli.FicsitCLI.ClearInstallations()
+	if err != nil {
+		return fmt.Errorf("failed to clear installations: %w", err)
+	}
+	
+	slog.Info("successfully cleared all installations")
+	return nil
+}
+
 func (a *app) ExternalInstallMod(modID, version string) {
-	wailsRuntime.EventsEmit(common.AppContext, "externalInstallMod", modID, version)
+	wailsRuntime.EventsEmit(appCommon.AppContext, "externalInstallMod", modID, version)
 }
 
 func (a *app) ExternalImportProfile(path string) {
-	wailsRuntime.EventsEmit(common.AppContext, "externalImportProfile", path)
+	wailsRuntime.EventsEmit(appCommon.AppContext, "externalImportProfile", path)
 }
 
 func (a *app) Show() {
-	wailsRuntime.WindowUnminimise(common.AppContext)
-	wailsRuntime.Show(common.AppContext)
+	wailsRuntime.WindowUnminimise(appCommon.AppContext)
+	wailsRuntime.Show(appCommon.AppContext)
 }
 
 func (a *app) OpenExternal(input string) {
