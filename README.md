@@ -1,5 +1,6 @@
 # Satisfactory Mod Manager - Custom Installation Support
 ## This application is **NOT** to be used as a support for cracked installations.
+## This application is **NOT** in ANY way associated with SMM, Satisfactory, or any of their organizations.
 
 Mod manager for [Satisfactory](https://www.satisfactorygame.com/).
 Handles all the steps of installing mods for you.
