@@ -1,4 +1,6 @@
-# Satisfactory Mod Manager
+# Satisfactory Mod Manager - CrackSupport
+## Please consider buying the game legit, the studio worked *extremely* hard on the game.
+### This readme stays the same for the cracksupport version.
 
 Mod manager for [Satisfactory](https://www.satisfactorygame.com/).
 Handles all the steps of installing mods for you.
