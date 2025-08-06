@@ -8,9 +8,10 @@ Handles all the steps of installing mods for you.
 Implemented in [Wails](https://wails.io/) using [Svelte](https://svelte.dev/) and [Skeleton](https://www.skeleton.dev/).
 
 ## Installation and Usage
+Check the releases page for the latest installer.
 
 Check the [modding documentation](https://docs.ficsit.app/satisfactory-modding/latest/index.html#_for_users)
-for installation and usage instructions.
+for usage instructions.
 
 ## Features
 
